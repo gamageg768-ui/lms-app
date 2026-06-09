@@ -1,0 +1,94 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("STUDENT") // "ADMIN" | "STUDENT"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  downloadPermissions DownloadPermission[]
+}
+
+model Material {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  subject      String   // PURE_MATHS | APPLIED_MATHS | PHYSICS | CHEMISTRY | ZOOLOGY | BOTANY
+  section      String   // PAST_PAPERS | MODEL_PAPERS | SHORT_NOTES | THEORY
+  filename     String
+  filePath     String
+  fileSize     Int
+  markingSchemePath     String?
+  markingSchemeFilename String?
+  markingSchemeFileSize Int?
+  uploadedById String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  downloadPermissions DownloadPermission[]
+  mcqSets             MCQSet[]
+}
+
+model DownloadPermission {
+  id         String   @id @default(cuid())
+  userId     String
+  materialId String
+  grantedAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, materialId])
+}
+
+model FlashCard {
+  id        String   @id @default(cuid())
+  subject   String
+  question  String
+  answer    String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MCQSet {
+  id           String   @id @default(cuid())
+  title        String
+  subject      String
+  section      String
+  materialId   String?
+  questionCount Int     @default(0) // admin-set limit; 0 = all
+  optionCount  Int      @default(4) // 4 or 5 options per question
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  material  Material?    @relation(fields: [materialId], references: [id])
+  questions MCQQuestion[]
+}
+
+model MCQQuestion {
+  id          String   @id @default(cuid())
+  mcqSetId    String
+  question    String
+  optionA     String
+  optionB     String
+  optionC     String
+  optionD     String
+  optionE     String?
+  answer      String   // "A" | "B" | "C" | "D" | "E"
+  explanation String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  mcqSet MCQSet @relation(fields: [mcqSetId], references: [id], onDelete: Cascade)
+}
