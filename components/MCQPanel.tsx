@@ -16,6 +16,21 @@ interface Attempt {
   timeTaken: number;
 }
 
+interface LeaderboardEntry {
+  rank: number;
+  label: string;
+  score: number;
+  total: number;
+  pct: number;
+  isMe: boolean;
+}
+
+interface LeaderboardData {
+  top5: LeaderboardEntry[];
+  myRank: number | null;
+  totalStudents: number;
+}
+
 type AnswerMap = Record<string, string>;
 type ReviewFilter = 'all' | 'correct' | 'wrong' | 'skipped';
 
@@ -71,6 +86,10 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
   const [history, setHistory] = useState<Attempt[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [focusedQ, setFocusedQ] = useState(0);
+
+  // Feature 9: Leaderboard
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const baseQuestions = useMemo<MCQQuestion[]>(() => {
     if (!activeSet) return [];
@@ -160,6 +179,15 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
       localStorage.setItem(`lms-mcq-history-${setId}`, JSON.stringify(next));
       setHistory(next);
     } catch {}
+    // Feature 9: Post attempt to server, then fetch leaderboard
+    fetch(`/api/mcq/sets/${setId}/attempts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score, total: currentQuestions.length, timeTaken: currentElapsed }),
+    }).then(res => res.ok ? fetch(`/api/mcq/sets/${setId}/leaderboard`) : null)
+      .then(res => res ? res.json() : null)
+      .then(data => { if (data) setLeaderboard(data); })
+      .catch(() => {});
     setTimerRunning(false);
     setSubmitted(true);
   }, []);
@@ -203,6 +231,8 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
     setElapsed(0);
     setFocusedQ(0);
     setReviewFilter('all');
+    setLeaderboard(null);
+    setShowLeaderboard(false);
     if (shuffleOn) setShuffleSeed(Date.now());
   }, [shuffleOn]);
 
@@ -220,6 +250,8 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
     setElapsed(0);
     setFocusedQ(0);
     setReviewFilter('all');
+    setLeaderboard(null);
+    setShowLeaderboard(false);
   }, [mcqSets]);
 
   const toggleFlag = useCallback((id: string) => {
@@ -271,7 +303,7 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
   ];
 
   return (
-    <div className="h-full flex flex-col bg-white border-l border-gray-200 select-none">
+    <div className="h-full flex flex-col bg-white border-l border-gray-200 select-none protected-content">
       {/* ── Header ── */}
       <div className="flex-shrink-0 bg-blue-50 border-b border-blue-100 px-2 py-2 space-y-1.5">
         <div className="flex items-center gap-1.5">
@@ -410,6 +442,39 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
               className="w-full mt-2 text-xs font-semibold text-blue-600 border border-blue-200 hover:bg-blue-50 py-1.5 rounded-lg transition">
               📋 View Marking Scheme
             </button>
+          )}
+          {/* Feature 9: Leaderboard toggle */}
+          {leaderboard && (
+            <button onClick={() => setShowLeaderboard(s => !s)}
+              className="w-full mt-1.5 text-xs font-semibold text-amber-600 border border-amber-200 hover:bg-amber-50 py-1.5 rounded-lg transition">
+              🏆 {showLeaderboard ? 'Hide' : 'View'} Leaderboard
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Feature 9: Leaderboard card */}
+      {submitted && showLeaderboard && leaderboard && (
+        <div className="flex-shrink-0 mx-2 mb-1 p-2 rounded-xl bg-amber-50 border border-amber-200">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-bold text-amber-800">🏆 Leaderboard</p>
+            <p className="text-xs text-amber-500">{leaderboard.totalStudents} students</p>
+          </div>
+          <div className="space-y-1">
+            {leaderboard.top5.map(entry => (
+              <div key={entry.rank}
+                className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1 ${entry.isMe ? 'bg-amber-200 font-bold' : 'bg-white'}`}>
+                <span className="w-5 text-center text-amber-600 font-mono">{entry.rank}</span>
+                <span className="flex-1 text-gray-700 truncate">{entry.label}{entry.isMe ? ' (you)' : ''}</span>
+                <span className={`font-bold ${entry.pct >= 70 ? 'text-green-600' : 'text-red-500'}`}>
+                  {entry.score}/{entry.total}
+                </span>
+                <span className="text-gray-400">{Math.round(entry.pct)}%</span>
+              </div>
+            ))}
+          </div>
+          {leaderboard.myRank && leaderboard.myRank > 5 && (
+            <p className="text-xs text-amber-600 text-center mt-1.5 font-medium">Your rank: #{leaderboard.myRank}</p>
           )}
         </div>
       )}
@@ -553,6 +618,11 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
           </div>
         </div>
       )}
+
+      {/* Feature 12: Monitoring notice */}
+      <div className="flex-shrink-0 bg-amber-50 border-t border-amber-200 text-amber-700 text-[10px] px-3 py-1 text-center select-none">
+        ⚠ Your activity on this platform is monitored and recorded. Unauthorised sharing of content is strictly prohibited.
+      </div>
     </div>
   );
 }

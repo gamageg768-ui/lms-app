@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
 import { SUBJECTS, SECTIONS } from '@/types';
+import AdminExamDates from '@/components/AdminExamDates';
 
 export default async function AdminDashboard() {
   const [userCount, materialCount, flashCount, mcqCount] = await Promise.all([
@@ -10,11 +11,15 @@ export default async function AdminDashboard() {
     prisma.mCQQuestion.count(),
   ]);
 
-  const recentMaterials = await prisma.material.findMany({
-    take: 5,
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, title: true, subject: true, section: true, createdAt: true },
-  });
+  const [recentMaterials, allExamDates] = await Promise.all([
+    prisma.material.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, title: true, subject: true, section: true, createdAt: true },
+    }),
+    prisma.examDate.findMany({ orderBy: { examAt: 'asc' } }),
+  ]);
+  const serializedExamDates = allExamDates.map(d => ({ ...d, examAt: d.examAt.toISOString(), createdAt: d.createdAt.toISOString() }));
 
   return (
     <div className="p-8">
@@ -37,6 +42,10 @@ export default async function AdminDashboard() {
             <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
           </div>
         ))}
+      </div>
+
+      <div className="mb-6">
+        <AdminExamDates initial={serializedExamDates} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

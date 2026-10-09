@@ -30,10 +30,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
-            <span className="text-white text-2xl font-bold">E</span>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">EduPortal</h1>
+          <img src="/velora-logo.svg" alt="Velora Education" className="h-20 mx-auto mb-2" />
           <p className="text-gray-500 mt-1">Create your student account</p>
         </div>
 

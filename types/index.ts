@@ -35,6 +35,29 @@ export interface Material {
   markingSchemePath?: string | null;
   markingSchemeFilename?: string | null;
   markingSchemeFileSize?: number | null;
+  difficulty?: string | null;  // "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+  publishAt?: string | null;
+  comingSoon?: boolean;        // true when publishAt is in the future (student view)
+  expiresAt?: string | null;
+  videoUrl?: string | null;
+}
+
+export interface LearningPath {
+  id: string;
+  title: string;
+  description: string | null;
+  subject: string;
+  createdAt: string;
+  updatedAt: string;
+  items: LearningPathItem[];
+}
+
+export interface LearningPathItem {
+  id: string;
+  pathId: string;
+  materialId: string;
+  order: number;
+  material?: { id: string; title: string; filename: string };
 }
 
 export interface MCQQuestion {
@@ -76,4 +99,28 @@ export interface DownloadPermission {
   grantedAt: string;
   user?: { name: string; email: string };
   material?: { title: string };
+}
+
+export type SubmissionStatus = 'PENDING' | 'REVIEWED';
+
+export interface PaperSubmission {
+  id: string;
+  studentId: string;
+  materialId: string;
+  subject: string;
+  section: string;
+  filename: string;
+  fileSize: number;
+  status: SubmissionStatus;
+  score: number | null;
+  maxScore: number | null;
+  feedback: string | null;
+  correctedFilename: string | null;
+  correctedFileSize: number | null;
+  correctedAt: string | null;
+  reviewedById: string | null;
+  submittedAt: string;
+  student?: { id: string; name: string; email: string };
+  material?: { id: string; title: string; subject: string; section: string };
+  reviewer?: { name: string } | null;
 }

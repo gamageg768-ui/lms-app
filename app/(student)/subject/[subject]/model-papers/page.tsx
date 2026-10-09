@@ -15,18 +15,16 @@ export default async function ModelPapersPage({ params }: { params: { subject: s
   const subjectInfo = SUBJECTS.find((s) => s.key === subjectKey);
   if (!subjectInfo) notFound();
 
-  const materials = await prisma.material.findMany({
-    where: { subject: subjectKey, section: 'MODEL_PAPERS' },
-    orderBy: { createdAt: 'desc' },
-  });
-  const permissions = await prisma.downloadPermission.findMany({
-    where: { userId: user.id, materialId: { in: materials.map((m) => m.id) } },
-  });
+  const now = new Date();
+  const [materials, permissions, mcqSets, learningPaths, secConfig] = await Promise.all([
+    prisma.material.findMany({ where: { subject: subjectKey, section: 'MODEL_PAPERS' }, orderBy: { createdAt: 'desc' } }),
+    prisma.downloadPermission.findMany({ where: { userId: user.id } }),
+    prisma.mCQSet.findMany({ where: { subject: subjectKey, section: 'MODEL_PAPERS' }, include: { questions: { orderBy: { order: 'asc' } } } }),
+    prisma.learningPath.findMany({ where: { subject: subjectKey }, include: { items: { orderBy: { order: 'asc' }, include: { material: { select: { id: true, title: true, filename: true } } } } } }),
+    prisma.securityConfig.findUnique({ where: { id: 'global' } }),
+  ]);
   const permSet = new Set(permissions.map((p) => p.materialId));
-  const mcqSets = await prisma.mCQSet.findMany({
-    where: { subject: subjectKey, section: 'MODEL_PAPERS' },
-    include: { questions: { orderBy: { order: 'asc' } } },
-  });
+  const securityConfig = secConfig ?? { pdfWatermark: true, pdfPointerOverlay: true, concurrentSessionGuard: true };
 
   return (
     <MaterialViewerClient
@@ -34,6 +32,16 @@ export default async function ModelPapersPage({ params }: { params: { subject: s
         ...m, fileSize: m.fileSize ?? 0, description: m.description ?? null,
         createdAt: m.createdAt.toISOString(), updatedAt: m.updatedAt.toISOString(),
         hasDownloadPermission: permSet.has(m.id),
+        difficulty: m.difficulty ?? null,
+        publishAt: m.publishAt ? m.publishAt.toISOString() : null,
+        expiresAt: m.expiresAt ? m.expiresAt.toISOString() : null,
+        comingSoon: !!(m.publishAt && m.publishAt > now),
+      }))}
+      learningPaths={learningPaths.map(p => ({
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+        items: p.items.map(i => ({ ...i, material: i.material })),
       }))}
       mcqSets={mcqSets.map((s) => ({
         ...s, createdAt: s.createdAt.toISOString(), updatedAt: s.updatedAt.toISOString(),
@@ -41,6 +49,7 @@ export default async function ModelPapersPage({ params }: { params: { subject: s
       }))}
       subject={subjectKey} section="MODEL_PAPERS" sectionLabel="Model Papers"
       userEmail={user.email} subjectLabel={subjectInfo.label} backHref={`/subject/${params.subject}`}
+      securityConfig={securityConfig}
     />
   );
 }

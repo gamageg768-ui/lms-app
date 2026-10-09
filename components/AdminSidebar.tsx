@@ -16,12 +16,9 @@ export default function AdminSidebar({ adminName, adminEmail }: Props) {
     <aside className="w-64 bg-gray-900 text-white flex flex-col min-h-screen flex-shrink-0">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-gray-700">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold">E</div>
-          <div>
-            <div className="font-bold text-sm">EduPortal Admin</div>
-            <div className="text-xs text-gray-400">Management Panel</div>
-          </div>
+        <div className="flex flex-col gap-1">
+          <img src="/velora-logo.svg" alt="Velora Education" className="h-10 brightness-0 invert" />
+          <div className="text-xs text-gray-400 tracking-wider uppercase">Admin Panel</div>
         </div>
       </div>
 
@@ -29,7 +26,10 @@ export default function AdminSidebar({ adminName, adminEmail }: Props) {
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         <NavItem href="/admin" label="Dashboard" icon="🏠" active={pathname === '/admin'} />
         <NavItem href="/admin/users" label="Students" icon="👥" active={pathname.startsWith('/admin/users')} />
+        <NavItem href="/admin/submissions" label="Submissions" icon="📬" active={pathname.startsWith('/admin/submissions')} />
         <NavItem href="/admin/permissions" label="Permissions" icon="🔑" active={pathname.startsWith('/admin/permissions')} />
+        <NavItem href="/admin/security" label="Security" icon="🔒" active={pathname.startsWith('/admin/security')} />
+        <NavItem href="/admin/reports" label="Reports" icon="📊" active={pathname.startsWith('/admin/reports')} />
 
         <div className="pt-3 pb-1">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider px-3">Subjects</p>

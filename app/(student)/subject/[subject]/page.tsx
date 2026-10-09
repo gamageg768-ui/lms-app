@@ -38,6 +38,13 @@ export default async function SubjectPage({ params }: { params: { subject: strin
       <h1 className="text-3xl font-bold text-gray-900 mb-2">{subjectInfo.label}</h1>
       <p className="text-gray-500 mb-8">Select a section to access study materials</p>
 
+      <div className="flex gap-3 mb-6">
+        <Link href={`/subject/${params.subject}/leaderboard`}
+          className="flex items-center gap-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition px-4 py-2 rounded-xl">
+          🏆 Leaderboard
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {SECTIONS.map((section) => (
           <Link

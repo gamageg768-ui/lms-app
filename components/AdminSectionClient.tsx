@@ -3,25 +3,28 @@ import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { formatFileSize } from '@/lib/utils';
 
-interface Material { id: string; title: string; description: string | null; subject: string; section: string; filename: string; fileSize: number; uploadedById: string; createdAt: string; updatedAt: string; markingSchemePath?: string | null; markingSchemeFilename?: string | null; markingSchemeFileSize?: number | null; }
+interface Material { id: string; title: string; description: string | null; subject: string; section: string; filename: string; fileSize: number; uploadedById: string; createdAt: string; updatedAt: string; markingSchemePath?: string | null; markingSchemeFilename?: string | null; markingSchemeFileSize?: number | null; expiresAt?: string | null; difficulty?: string | null; publishAt?: string | null; videoUrl?: string | null; }
+interface LearningPathItem { id: string; pathId: string; materialId: string; order: number; material?: { id: string; title: string; filename: string } | null; }
+interface LearningPath { id: string; title: string; description: string | null; subject: string; createdAt: string; updatedAt: string; items: LearningPathItem[]; }
 interface MCQQuestion { id: string; mcqSetId: string; question: string; optionA: string; optionB: string; optionC: string; optionD: string; optionE: string | null; answer: string; explanation: string | null; order: number; }
 interface MCQSet { id: string; title: string; subject: string; section: string; materialId: string | null; questionCount: number; optionCount: number; questions: MCQQuestion[]; createdAt: string; updatedAt: string; }
 interface FlashCard { id: string; subject: string; question: string; answer: string; order: number; createdAt: string; updatedAt: string; }
 interface User { id: string; name: string; email: string; }
-interface Permission { id: string; userId: string; materialId: string; grantedAt: string; }
+interface Permission { id: string; userId: string; materialId: string; grantedAt: string; downloadLimit?: number; downloadCount?: number; }
 
 interface Props {
   subjectKey: string; sectionKey: string; subjectLabel: string; sectionLabel: string;
   hasMCQ?: boolean; materials: Material[]; mcqSets: MCQSet[]; flashCards: FlashCard[];
-  users?: User[]; permissions?: Permission[]; backHref: string;
+  users?: User[]; permissions?: Permission[]; learningPaths?: LearningPath[]; backHref: string;
 }
 
-type Tab = 'materials' | 'mcq' | 'flashcards' | 'permissions';
+type Tab = 'materials' | 'mcq' | 'flashcards' | 'permissions' | 'learningpaths';
 
 export default function AdminSectionClient({
   subjectKey, sectionKey, subjectLabel, sectionLabel,
   hasMCQ, materials: initMaterials, mcqSets: initMCQSets,
-  flashCards: initFlashCards, users = [], permissions: initPerms = [], backHref,
+  flashCards: initFlashCards, users = [], permissions: initPerms = [],
+  learningPaths: initPaths = [], backHref,
 }: Props) {
   const [tab, setTab] = useState<Tab>(sectionKey === 'FLASH_CARDS' ? 'flashcards' : 'materials');
   const [materials, setMaterials] = useState(initMaterials);
@@ -35,6 +38,136 @@ export default function AdminSectionClient({
 
   // Marking scheme upload state (per-row)
   const [msUploading, setMsUploading] = useState<string | null>(null); // materialId being uploaded
+
+  // Feature 5: Expiry date editing state
+  const [expiryEditing, setExpiryEditing] = useState<string | null>(null);
+  const [expiryValue, setExpiryValue] = useState('');
+
+  // Feature 3: Difficulty editing state
+  const [difficultyEditing, setDifficultyEditing] = useState<string | null>(null);
+
+  // Feature 7: Publish-at editing state
+  const [publishEditing, setPublishEditing] = useState<string | null>(null);
+  const [publishValue, setPublishValue] = useState('');
+
+  // Video URL editing state
+  const [videoEditing, setVideoEditing] = useState<string | null>(null);
+  const [videoValue, setVideoValue] = useState('');
+
+  // Feature 2: Learning paths state
+  const [learningPaths, setLearningPaths] = useState<LearningPath[]>(initPaths);
+  const [selectedPath, setSelectedPath] = useState<LearningPath | null>(null);
+  const [newPathTitle, setNewPathTitle] = useState('');
+  const [newPathDesc, setNewPathDesc] = useState('');
+  const [creatingPath, setCreatingPath] = useState(false);
+  const [pathAddMaterialId, setPathAddMaterialId] = useState('');
+  const [pathAddingMat, setPathAddingMat] = useState(false);
+
+  // Feature 12: AI difficulty tagger state
+  const [aiTagging, setAiTagging] = useState(false);
+  const [aiTagPreview, setAiTagPreview] = useState<{ id: string; question: string; difficulty: string }[] | null>(null);
+  const [aiTagApplying, setAiTagApplying] = useState(false);
+  const [aiTagApplied, setAiTagApplied] = useState(false);
+
+  const handleSetExpiry = async (materialId: string, expiresAt: string | null) => {
+    const res = await fetch(`/api/materials/${materialId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresAt }),
+    });
+    if (res.ok) setMaterials(prev => prev.map(m => m.id === materialId ? { ...m, expiresAt } : m));
+    setExpiryEditing(null);
+    setExpiryValue('');
+  };
+
+  const handleSetDifficulty = async (materialId: string, difficulty: string | null) => {
+    const res = await fetch(`/api/materials/${materialId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ difficulty }),
+    });
+    if (res.ok) setMaterials(prev => prev.map(m => m.id === materialId ? { ...m, difficulty } : m));
+    setDifficultyEditing(null);
+  };
+
+  const handleSetPublishAt = async (materialId: string, publishAt: string | null) => {
+    const res = await fetch(`/api/materials/${materialId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publishAt }),
+    });
+    if (res.ok) setMaterials(prev => prev.map(m => m.id === materialId ? { ...m, publishAt } : m));
+    setPublishEditing(null);
+    setPublishValue('');
+  };
+
+  const handleSetVideoUrl = async (materialId: string, videoUrl: string | null) => {
+    const res = await fetch(`/api/materials/${materialId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoUrl }),
+    });
+    if (res.ok) setMaterials(prev => prev.map(m => m.id === materialId ? { ...m, videoUrl } : m));
+    setVideoEditing(null);
+    setVideoValue('');
+  };
+
+  const handleCreatePath = async () => {
+    if (!newPathTitle.trim()) return;
+    setCreatingPath(true);
+    const res = await fetch('/api/learning-paths', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newPathTitle, description: newPathDesc || null, subject: subjectKey }),
+    });
+    const data = await res.json();
+    setCreatingPath(false);
+    if (res.ok) {
+      const newPath = { ...data, items: [] };
+      setLearningPaths(prev => [newPath, ...prev]);
+      setSelectedPath(newPath);
+      setNewPathTitle('');
+      setNewPathDesc('');
+    }
+  };
+
+  const handleDeletePath = async (pathId: string) => {
+    if (!confirm('Delete this learning path?')) return;
+    const res = await fetch(`/api/learning-paths/${pathId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setLearningPaths(prev => prev.filter(p => p.id !== pathId));
+      if (selectedPath?.id === pathId) setSelectedPath(null);
+    }
+  };
+
+  const handleAddToPath = async () => {
+    if (!selectedPath || !pathAddMaterialId) return;
+    setPathAddingMat(true);
+    const res = await fetch(`/api/learning-paths/${selectedPath.id}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ materialId: pathAddMaterialId }),
+    });
+    const data = await res.json();
+    setPathAddingMat(false);
+    if (res.ok) {
+      const mat = materials.find(m => m.id === pathAddMaterialId);
+      const newItem: LearningPathItem = { ...data, material: mat ? { id: mat.id, title: mat.title, filename: mat.filename } : null };
+      const updated = { ...selectedPath, items: [...selectedPath.items, newItem] };
+      setSelectedPath(updated);
+      setLearningPaths(prev => prev.map(p => p.id === selectedPath.id ? updated : p));
+      setPathAddMaterialId('');
+    }
+  };
+
+  const handleRemoveFromPath = async (pathId: string, itemId: string) => {
+    const res = await fetch(`/api/learning-paths/${pathId}/items/${itemId}`, { method: 'DELETE' });
+    if (res.ok && selectedPath) {
+      const updated = { ...selectedPath, items: selectedPath.items.filter(i => i.id !== itemId) };
+      setSelectedPath(updated);
+      setLearningPaths(prev => prev.map(p => p.id === pathId ? updated : p));
+    }
+  };
 
   // MCQ state
   const [selectedSet, setSelectedSet] = useState<MCQSet | null>(null);
@@ -204,6 +337,43 @@ export default function AdminSectionClient({
     syncSet({ ...selectedSet, questions: selectedSet.questions.map(q => q.id === qId ? { ...q, answer } : q) });
   };
 
+  const handleAiTagDifficulty = async () => {
+    if (flashCards.length === 0) return;
+    setAiTagging(true);
+    setAiTagPreview(null);
+    try {
+      const res = await fetch('/api/ai/tag-card-difficulty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cards: flashCards.slice(0, 50) }),
+      });
+      if (!res.ok) { alert('AI tagging failed. Check GROQ_API_KEY.'); return; }
+      const data = await res.json();
+      const preview = (data.ratings ?? []).map((r: { id: string; difficulty: string }) => {
+        const card = flashCards.find(c => c.id === r.id);
+        return { id: r.id, question: card?.question ?? '', difficulty: r.difficulty };
+      });
+      setAiTagPreview(preview);
+    } finally {
+      setAiTagging(false);
+    }
+  };
+
+  const handleApplyAiTags = async () => {
+    if (!aiTagPreview) return;
+    setAiTagApplying(true);
+    // Store AI difficulty tags in localStorage (client-side, admin-side only)
+    // We store a map subject → { cardId: difficulty }
+    const storageKey = `lms-admin-card-difficulty-${subjectKey}`;
+    const existing: Record<string, string> = JSON.parse(localStorage.getItem(storageKey) ?? '{}');
+    for (const r of aiTagPreview) existing[r.id] = r.difficulty;
+    localStorage.setItem(storageKey, JSON.stringify(existing));
+    setAiTagPreview(null);
+    setAiTagApplying(false);
+    setAiTagApplied(true);
+    setTimeout(() => setAiTagApplied(false), 4000);
+  };
+
   const handleAddCard = async () => {
     if (!newCard.question.trim() || !newCard.answer.trim()) return;
     const res = await fetch('/api/flashcards', {
@@ -310,6 +480,7 @@ export default function AdminSectionClient({
     ...(hasMCQ ? [{ key: 'mcq', label: 'MCQ Sets', count: mcqSets.length }] : []),
     ...(sectionKey === 'FLASH_CARDS' ? [{ key: 'flashcards', label: 'Flash Cards', count: flashCards.length }] : []),
     ...(sectionKey !== 'FLASH_CARDS' ? [{ key: 'permissions', label: 'Permissions', count: permissions.length }] : []),
+    ...(sectionKey !== 'FLASH_CARDS' ? [{ key: 'learningpaths', label: '📚 Paths', count: learningPaths.length }] : []),
   ] as { key: Tab; label: string; count: number }[];
 
   return (
@@ -387,7 +558,8 @@ export default function AdminSectionClient({
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                   <tr>
                     <th className="px-6 py-3 text-left">Title</th>
-                    <th className="px-6 py-3 text-left">File</th>
+                    <th className="px-4 py-3 text-left">Level</th>
+                    <th className="px-4 py-3 text-left">Publishes</th>
                     <th className="px-6 py-3 text-left">Size</th>
                     <th className="px-6 py-3 text-left">Uploaded</th>
                     <th className="px-6 py-3 text-right">Actions</th>
@@ -395,20 +567,110 @@ export default function AdminSectionClient({
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {materials.map((m) => (
-                    <tr key={m.id} className="hover:bg-gray-50">
+                    <tr key={m.id} className="hover:bg-gray-50 group">
                       <td className="px-6 py-3">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-gray-800">{m.title}</span>
                           {m.markingSchemeFilename && (
                             <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium" title="Has marking scheme">📋</span>
                           )}
+                          {/* Feature 5: expiry badge */}
+                          {expiryEditing === m.id ? (
+                            <span className="flex items-center gap-1">
+                              <input type="date" value={expiryValue} onChange={e => setExpiryValue(e.target.value)}
+                                className="text-xs border border-amber-400 rounded px-1 py-0.5 focus:outline-none" />
+                              <button onClick={() => handleSetExpiry(m.id, expiryValue || null)}
+                                className="text-xs font-semibold text-green-700 hover:text-green-900">✓</button>
+                              <button onClick={() => { setExpiryEditing(null); setExpiryValue(''); }}
+                                className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            </span>
+                          ) : m.expiresAt ? (
+                            <button onClick={() => { setExpiryEditing(m.id); setExpiryValue(m.expiresAt!.slice(0, 10)); }}
+                              title="Click to change expiry"
+                              className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium hover:bg-amber-200 transition">
+                              ⏳ {new Date(m.expiresAt).toLocaleDateString()}
+                            </button>
+                          ) : (
+                            <button onClick={() => setExpiryEditing(m.id)}
+                              title="Set expiry date"
+                              className="text-xs text-gray-400 hover:text-amber-600 px-1 rounded transition opacity-0 group-hover:opacity-100">
+                              + expiry
+                            </button>
+                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-3 text-gray-500 truncate max-w-[160px]">{m.filename}</td>
+                      {/* Feature 3: Difficulty cell */}
+                      <td className="px-4 py-3">
+                        {difficultyEditing === m.id ? (
+                          <select autoFocus onBlur={() => setDifficultyEditing(null)}
+                            onChange={e => handleSetDifficulty(m.id, e.target.value || null)}
+                            defaultValue={m.difficulty || ''}
+                            className="text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none">
+                            <option value="">—</option>
+                            <option value="BEGINNER">Beginner</option>
+                            <option value="INTERMEDIATE">Intermediate</option>
+                            <option value="ADVANCED">Advanced</option>
+                          </select>
+                        ) : (
+                          <button onClick={() => setDifficultyEditing(m.id)}
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium transition hover:opacity-80 ${
+                              m.difficulty === 'BEGINNER' ? 'bg-green-100 text-green-700' :
+                              m.difficulty === 'INTERMEDIATE' ? 'bg-yellow-100 text-yellow-700' :
+                              m.difficulty === 'ADVANCED' ? 'bg-red-100 text-red-700' :
+                              'text-gray-400 hover:text-blue-600'}`}>
+                            {m.difficulty ? m.difficulty.charAt(0) + m.difficulty.slice(1).toLowerCase() : '+ level'}
+                          </button>
+                        )}
+                      </td>
+                      {/* Feature 7: Publish-at cell */}
+                      <td className="px-4 py-3">
+                        {publishEditing === m.id ? (
+                          <span className="flex items-center gap-1">
+                            <input type="datetime-local" value={publishValue} onChange={e => setPublishValue(e.target.value)}
+                              className="text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none" />
+                            <button onClick={() => handleSetPublishAt(m.id, publishValue ? new Date(publishValue).toISOString() : null)}
+                              className="text-xs font-semibold text-green-700 hover:text-green-900">✓</button>
+                            <button onClick={() => { setPublishEditing(null); setPublishValue(''); }}
+                              className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                          </span>
+                        ) : m.publishAt ? (
+                          <button onClick={() => { setPublishEditing(m.id); setPublishValue(m.publishAt!.slice(0, 16)); }}
+                            className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium hover:bg-blue-200 transition">
+                            ⏰ {new Date(m.publishAt).toLocaleDateString()}
+                          </button>
+                        ) : (
+                          <button onClick={() => setPublishEditing(m.id)}
+                            className="text-xs text-gray-400 hover:text-blue-600 px-1 rounded transition opacity-0 group-hover:opacity-100">
+                            + schedule
+                          </button>
+                        )}
+                      </td>
                       <td className="px-6 py-3 text-gray-500">{formatFileSize(m.fileSize)}</td>
                       <td className="px-6 py-3 text-gray-500">{new Date(m.createdAt).toLocaleDateString()}</td>
                       <td className="px-6 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1 flex-wrap">
+                          {/* Video URL button */}
+                          {videoEditing === m.id ? (
+                            <span className="flex items-center gap-1">
+                              <input type="url" value={videoValue} onChange={e => setVideoValue(e.target.value)}
+                                placeholder="YouTube or MP4 URL"
+                                className="text-xs border border-indigo-300 rounded px-1 py-0.5 focus:outline-none w-40" />
+                              <button onClick={() => handleSetVideoUrl(m.id, videoValue || null)}
+                                className="text-xs font-semibold text-green-700 hover:text-green-900">✓</button>
+                              <button onClick={() => { setVideoEditing(null); setVideoValue(''); }}
+                                className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            </span>
+                          ) : m.videoUrl ? (
+                            <button onClick={() => { setVideoEditing(m.id); setVideoValue(m.videoUrl!); }}
+                              className="text-indigo-600 hover:text-indigo-800 text-xs font-medium px-2 py-1 rounded-lg hover:bg-indigo-50 transition" title="Edit video URL">
+                              🎬 ✓
+                            </button>
+                          ) : (
+                            <button onClick={() => setVideoEditing(m.id)}
+                              className="text-indigo-400 hover:text-indigo-700 text-xs font-medium px-2 py-1 rounded-lg hover:bg-indigo-50 transition" title="Add video URL">
+                              + 🎬
+                            </button>
+                          )}
                           {m.markingSchemeFilename ? (
                             <button onClick={() => handleDeleteMarkingScheme(m.id)}
                               className="text-purple-600 hover:text-purple-800 text-xs font-medium px-2 py-1 rounded-lg hover:bg-purple-50 transition" title="Remove marking scheme">
@@ -580,6 +842,10 @@ export default function AdminSectionClient({
                         return (
                           <div key={q.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 group">
                             <span className="text-xs font-bold text-gray-500 w-8 flex-shrink-0 text-right">Q{i + 1}</span>
+                            {/* Feature 10: canary badge — stored as [CANARY] prefix in explanation */}
+                            {q.explanation?.startsWith('[CANARY]') && (
+                              <span title="Canary question — for leak tracing" className="text-xs flex-shrink-0">🐦</span>
+                            )}
                             <div className="flex gap-1 flex-1">
                               {opts.map(opt => (
                                 <button key={opt} onClick={() => handleSetAnswer(q.id, opt)}
@@ -591,6 +857,26 @@ export default function AdminSectionClient({
                                 </button>
                               ))}
                             </div>
+                            {/* Feature 10: canary toggle button */}
+                            <button
+                              onClick={async () => {
+                                if (!selectedSet) return;
+                                const isCanary = q.explanation?.startsWith('[CANARY]');
+                                const newExplanation = isCanary
+                                  ? (q.explanation?.slice('[CANARY]'.length).trim() || null)
+                                  : '[CANARY]' + (q.explanation ? ' ' + q.explanation : '');
+                                await fetch(`/api/mcq/sets/${selectedSet.id}/questions/${q.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ explanation: newExplanation }),
+                                });
+                                syncSet({ ...selectedSet, questions: selectedSet.questions.map(sq => sq.id === q.id ? { ...sq, explanation: newExplanation } : sq) });
+                              }}
+                              title={q.explanation?.startsWith('[CANARY]') ? 'Remove canary flag' : 'Mark as canary (leak-tracing question)'}
+                              className={`flex-shrink-0 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg transition-all text-sm
+                                ${q.explanation?.startsWith('[CANARY]') ? 'opacity-100 bg-yellow-100' : 'hover:bg-yellow-50'}`}>
+                              🐦
+                            </button>
                             <button onClick={() => handleDeleteQuestion(q.id)}
                               className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-sm font-bold">
                               ✕
@@ -684,9 +970,60 @@ export default function AdminSectionClient({
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">Flash Cards ({flashCards.length})</h2>
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-gray-900">Flash Cards ({flashCards.length})</h2>
+                {aiTagApplied && <p className="text-xs text-purple-600 mt-0.5">✓ Difficulty tags saved — students will see these in the viewer</p>}
+              </div>
+              {flashCards.length > 0 && (
+                <button onClick={handleAiTagDifficulty} disabled={aiTagging}
+                  className="flex items-center gap-1.5 bg-purple-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-purple-700 transition disabled:opacity-60">
+                  {aiTagging ? 'Analysing...' : '✨ Tag Difficulty'}
+                </button>
+              )}
             </div>
+
+            {/* AI difficulty tag preview */}
+            {aiTagPreview && (
+              <div className="border-b border-gray-100 bg-purple-50 p-4">
+                <p className="text-sm font-semibold text-purple-800 mb-3">AI Difficulty Suggestions — review and apply:</p>
+                <div className="overflow-x-auto max-h-60 overflow-y-auto rounded-xl border border-purple-200 bg-white">
+                  <table className="w-full text-sm">
+                    <thead className="bg-purple-50 text-xs text-purple-700 uppercase sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Question</th>
+                        <th className="px-4 py-2 text-center">AI Rating</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {aiTagPreview.map((r) => (
+                        <tr key={r.id}>
+                          <td className="px-4 py-2 text-gray-700 truncate max-w-xs">{r.question}</td>
+                          <td className="px-4 py-2 text-center">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                              r.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
+                              r.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>{r.difficulty}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={handleApplyAiTags} disabled={aiTagApplying}
+                    className="bg-purple-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-purple-700 transition disabled:opacity-60">
+                    {aiTagApplying ? 'Saving...' : 'Apply Tags'}
+                  </button>
+                  <button onClick={() => setAiTagPreview(null)}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
             {flashCards.length === 0 ? (
               <div className="p-8 text-center text-gray-400 text-sm">No flash cards yet</div>
             ) : (
@@ -739,15 +1076,24 @@ export default function AdminSectionClient({
                       </td>
                       {materials.map((m) => {
                         const granted = hasPermission(u.id, m.id);
+                        const perm = permissions.find(p => p.userId === u.id && p.materialId === m.id);
                         return (
                           <td key={m.id} className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => granted ? handleRevokePermission(u.id, m.id) : handleGrantPermission(u.id, m.id)}
-                              className={`w-8 h-8 rounded-lg text-lg transition ${granted ? 'bg-green-100 hover:bg-red-100' : 'bg-gray-100 hover:bg-green-100'}`}
-                              title={granted ? 'Revoke permission' : 'Grant permission'}
-                            >
-                              {granted ? '✓' : '○'}
-                            </button>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <button
+                                onClick={() => granted ? handleRevokePermission(u.id, m.id) : handleGrantPermission(u.id, m.id)}
+                                className={`w-8 h-8 rounded-lg text-lg transition ${granted ? 'bg-green-100 hover:bg-red-100' : 'bg-gray-100 hover:bg-green-100'}`}
+                                title={granted ? 'Revoke permission' : 'Grant permission'}
+                              >
+                                {granted ? '✓' : '○'}
+                              </button>
+                              {/* Feature 8: show download count/limit */}
+                              {perm && (
+                                <span className="text-[10px] text-gray-400 leading-tight">
+                                  {perm.downloadCount ?? 0}/{perm.downloadLimit ?? 3}
+                                </span>
+                              )}
+                            </div>
                           </td>
                         );
                       })}
@@ -757,6 +1103,112 @@ export default function AdminSectionClient({
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* LEARNING PATHS TAB */}
+      {tab === 'learningpaths' && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Left: Create + list */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+              <h3 className="font-bold text-gray-900 text-sm">Create Learning Path</h3>
+              <input type="text" value={newPathTitle} onChange={e => setNewPathTitle(e.target.value)}
+                placeholder="Path title, e.g. Exam Prep Sequence"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <textarea value={newPathDesc} onChange={e => setNewPathDesc(e.target.value)}
+                placeholder="Optional description"
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              <button onClick={handleCreatePath} disabled={creatingPath || !newPathTitle.trim()}
+                className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-60 text-sm">
+                {creatingPath ? 'Creating...' : '+ Create Path'}
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200">
+              <div className="px-5 py-3 border-b border-gray-100">
+                <h3 className="font-bold text-gray-900 text-sm">Learning Paths ({learningPaths.length})</h3>
+              </div>
+              {learningPaths.length === 0 ? (
+                <div className="px-5 py-6 text-sm text-gray-400 text-center">No paths yet</div>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {learningPaths.map(p => (
+                    <li key={p.id}>
+                      <button onClick={() => setSelectedPath(p)}
+                        className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition ${selectedPath?.id === p.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}>
+                        <p className="font-semibold text-gray-800 text-sm truncate">{p.title}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{p.items.length} materials</p>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Path detail */}
+          <div className="lg:col-span-3">
+            {!selectedPath ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center text-gray-400">
+                <div className="text-4xl mb-3">📚</div>
+                <p className="text-sm">Select a path to manage its materials</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-200">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-gray-900">{selectedPath.title}</h3>
+                    {selectedPath.description && <p className="text-xs text-gray-500 mt-0.5">{selectedPath.description}</p>}
+                    <p className="text-xs text-gray-400 mt-0.5">{selectedPath.items.length} materials in sequence</p>
+                  </div>
+                  <button onClick={() => handleDeletePath(selectedPath.id)}
+                    className="flex-shrink-0 text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-xl transition">
+                    🗑 Delete
+                  </button>
+                </div>
+
+                {/* Add material to path */}
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex gap-2 items-center">
+                  <select value={pathAddMaterialId} onChange={e => setPathAddMaterialId(e.target.value)}
+                    className="flex-1 text-sm px-2 py-1.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="">— Add material to path —</option>
+                    {materials.filter(m => !selectedPath.items.some(i => i.materialId === m.id)).map(m => (
+                      <option key={m.id} value={m.id}>📄 {m.title}</option>
+                    ))}
+                  </select>
+                  <button onClick={handleAddToPath} disabled={pathAddingMat || !pathAddMaterialId}
+                    className="flex-shrink-0 bg-blue-600 text-white text-sm px-3 py-1.5 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50">
+                    {pathAddingMat ? '...' : '+ Add'}
+                  </button>
+                </div>
+
+                {/* Items list */}
+                {selectedPath.items.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-sm">No materials in this path yet</div>
+                ) : (
+                  <ol className="divide-y divide-gray-100">
+                    {selectedPath.items.map((item, idx) => {
+                      const mat = item.material ?? materials.find(m => m.id === item.materialId);
+                      return (
+                        <li key={item.id} className="flex items-center gap-3 px-5 py-3">
+                          <span className="text-sm font-bold text-gray-400 w-6 text-right flex-shrink-0">{idx + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{mat?.title ?? 'Unknown'}</p>
+                          </div>
+                          <button onClick={() => handleRemoveFromPath(selectedPath.id, item.id)}
+                            className="flex-shrink-0 text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded-lg hover:bg-red-50 transition">
+                            ✕
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

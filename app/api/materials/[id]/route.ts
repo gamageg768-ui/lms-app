@@ -38,9 +38,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
   const body = await req.json();
-  const material = await prisma.material.update({
-    where: { id: params.id },
-    data: { title: body.title, description: body.description },
-  });
+  const data: any = {};
+  if ('title' in body) data.title = body.title;
+  if ('description' in body) data.description = body.description;
+  if ('expiresAt' in body) data.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
+  if ('difficulty' in body) data.difficulty = body.difficulty || null;
+  if ('publishAt' in body) data.publishAt = body.publishAt ? new Date(body.publishAt) : null;
+  if ('videoUrl' in body) data.videoUrl = body.videoUrl || null;
+  const material = await prisma.material.update({ where: { id: params.id }, data });
   return NextResponse.json(material);
 }

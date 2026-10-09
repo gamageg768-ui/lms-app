@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 100" fill="none">
+  <!-- VELORA -->
+  <text
+    x="190" y="55"
+    font-family="'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif"
+    font-size="56"
+    font-weight="300"
+    letter-spacing="14"
+    text-anchor="middle"
+    fill="#111111"
+  >VELORA</text>
+
+  <!-- Left line (close to EDUCATION) -->
+  <line x1="14" y1="76" x2="88" y2="76" stroke="#111111" stroke-width="1.2"/>
+
+  <!-- EDUCATION — bigger, tighter gap to lines -->
+  <text
+    x="190" y="82"
+    font-family="'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif"
+    font-size="17"
+    font-weight="300"
+    letter-spacing="6"
+    text-anchor="middle"
+    fill="#111111"
+  >EDUCATION</text>
+
+  <!-- Right line (close to EDUCATION) -->
+  <line x1="292" y1="76" x2="366" y2="76" stroke="#111111" stroke-width="1.2"/>
+</svg>

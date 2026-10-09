@@ -37,15 +37,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
-  const { userId, materialId } = await req.json();
+  const { userId, materialId, downloadLimit } = await req.json();
   if (!userId || !materialId) {
     return NextResponse.json({ error: 'userId and materialId required' }, { status: 400 });
   }
 
   const permission = await prisma.downloadPermission.upsert({
     where: { userId_materialId: { userId, materialId } },
-    update: {},
-    create: { userId, materialId },
+    update: downloadLimit != null ? { downloadLimit: Number(downloadLimit) } : {},
+    create: { userId, materialId, ...(downloadLimit != null ? { downloadLimit: Number(downloadLimit) } : {}) },
     include: {
       user: { select: { name: true, email: true } },
       material: { select: { title: true } },

@@ -5,7 +5,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'EduPortal LMS',
+  title: 'Velora Education',
   description: 'A comprehensive learning management system for A/L students',
   manifest: '/manifest.json',
 };

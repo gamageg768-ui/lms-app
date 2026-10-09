@@ -17,6 +17,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   downloadPermissions DownloadPermission[]
+  accessLogs          AccessLog[]
+  materialNotes       MaterialNote[]
+  mcqAttempts         MCQAttempt[]
+  materialRatings     MaterialRating[]
+  materialComments    MaterialComment[]
+  submissions         PaperSubmission[]   @relation("StudentSubmissions")
+  reviews             PaperSubmission[]   @relation("ReviewerSubmissions")
 }
 
 model Material {
@@ -31,24 +38,49 @@ model Material {
   markingSchemePath     String?
   markingSchemeFilename String?
   markingSchemeFileSize Int?
+  expiresAt    DateTime?
+  difficulty   String?  // "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+  publishAt    DateTime?
+  videoUrl     String?
   uploadedById String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   downloadPermissions DownloadPermission[]
   mcqSets             MCQSet[]
+  accessLogs          AccessLog[]
+  learningPathItems   LearningPathItem[]
+  notes               MaterialNote[]
+  ratings             MaterialRating[]
+  comments            MaterialComment[]
+  submissions         PaperSubmission[]
 }
 
 model DownloadPermission {
-  id         String   @id @default(cuid())
-  userId     String
-  materialId String
-  grantedAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  materialId    String
+  grantedAt     DateTime @default(now())
+  downloadLimit Int      @default(3)
+  downloadCount Int      @default(0)
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@unique([userId, materialId])
+}
+
+model AccessLog {
+  id         String   @id @default(cuid())
+  userId     String
+  materialId String
+  action     String   // "VIEW" | "DOWNLOAD" | "VIEW_SCHEME"
+  ip         String?
+  sessionRef String?
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 }
 
 model FlashCard {
@@ -67,13 +99,14 @@ model MCQSet {
   subject      String
   section      String
   materialId   String?
-  questionCount Int     @default(0) // admin-set limit; 0 = all
-  optionCount  Int      @default(4) // 4 or 5 options per question
+  questionCount Int     @default(0)
+  optionCount  Int      @default(4)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   material  Material?    @relation(fields: [materialId], references: [id])
   questions MCQQuestion[]
+  attempts  MCQAttempt[]
 }
 
 model MCQQuestion {
@@ -91,4 +124,126 @@ model MCQQuestion {
   createdAt   DateTime @default(now())
 
   mcqSet MCQSet @relation(fields: [mcqSetId], references: [id], onDelete: Cascade)
+}
+
+model LearningPath {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  subject     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items LearningPathItem[]
+}
+
+model LearningPathItem {
+  id           String @id @default(cuid())
+  pathId       String
+  materialId   String
+  order        Int    @default(0)
+
+  learningPath LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  material     Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([pathId, materialId])
+}
+
+model MaterialNote {
+  id         String   @id @default(cuid())
+  userId     String
+  materialId String
+  page       Int      @default(1)
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+}
+
+model MCQAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  mcqSetId  String
+  score     Int
+  total     Int
+  timeTaken Int
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mcqSet MCQSet @relation(fields: [mcqSetId], references: [id], onDelete: Cascade)
+}
+
+model ExamDate {
+  id        String   @id @default(cuid())
+  subject   String
+  label     String
+  examAt    DateTime
+  createdAt DateTime @default(now())
+}
+
+model MaterialRating {
+  id         String   @id @default(cuid())
+  userId     String
+  materialId String
+  rating     Int
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, materialId])
+}
+
+model MaterialComment {
+  id         String   @id @default(cuid())
+  materialId String
+  userId     String
+  parentId   String?
+  body       String
+  createdAt  DateTime @default(now())
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  material Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  parent   MaterialComment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  MaterialComment[] @relation("CommentReplies")
+}
+
+model SecurityConfig {
+  id                     String   @id @default("global")
+  screenshotGuard        Boolean  @default(true)
+  tabBlur                Boolean  @default(true)
+  screenCaptureBlock     Boolean  @default(true)
+  printBlock             Boolean  @default(true)
+  pdfWatermark           Boolean  @default(true)
+  pdfPointerOverlay      Boolean  @default(true)
+  concurrentSessionGuard Boolean  @default(true)
+  updatedAt              DateTime @updatedAt
+}
+
+// status: "PENDING" | "REVIEWED"
+model PaperSubmission {
+  id                  String    @id @default(cuid())
+  studentId           String
+  materialId          String
+  subject             String
+  section             String
+  filename            String
+  filePath            String
+  fileSize            Int
+  status              String    @default("PENDING")
+  score               Int?
+  maxScore            Int?
+  feedback            String?
+  correctedFilePath   String?
+  correctedFilename   String?
+  correctedFileSize   Int?
+  correctedAt         DateTime?
+  reviewedById        String?
+  submittedAt         DateTime  @default(now())
+
+  student    User     @relation("StudentSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  reviewer   User?    @relation("ReviewerSubmissions", fields: [reviewedById], references: [id])
 }

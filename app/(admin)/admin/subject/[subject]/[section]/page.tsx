@@ -51,6 +51,11 @@ export default async function AdminSectionPage({ params }: { params: { subject: 
     where: { materialId: { in: materials.map((m) => m.id) } },
   });
 
+  const learningPaths = await prisma.learningPath.findMany({
+    where: { subject: subjectKey },
+    include: { items: { orderBy: { order: 'asc' }, include: { material: { select: { id: true, title: true, filename: true } } } } },
+  });
+
   return (
     <AdminSectionClient
       subjectKey={subjectKey} sectionKey={sectionKey}
@@ -59,6 +64,9 @@ export default async function AdminSectionPage({ params }: { params: { subject: 
       materials={materials.map(m => ({
         ...m, description: m.description ?? null,
         createdAt: m.createdAt.toISOString(), updatedAt: m.updatedAt.toISOString(),
+        expiresAt: m.expiresAt ? m.expiresAt.toISOString() : null,
+        difficulty: m.difficulty ?? null,
+        publishAt: m.publishAt ? m.publishAt.toISOString() : null,
       }))}
       mcqSets={mcqSets.map(s => ({
         ...s, createdAt: s.createdAt.toISOString(), updatedAt: s.updatedAt.toISOString(),
@@ -67,6 +75,10 @@ export default async function AdminSectionPage({ params }: { params: { subject: 
       flashCards={[]}
       users={users}
       permissions={permissions.map(p => ({ ...p, grantedAt: p.grantedAt.toISOString() }))}
+      learningPaths={learningPaths.map(p => ({
+        ...p, createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString(),
+        items: p.items.map(i => ({ ...i, material: i.material })),
+      }))}
       backHref={`/admin/subject/${params.subject}`}
     />
   );

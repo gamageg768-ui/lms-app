@@ -21,9 +21,13 @@ export async function GET(req: NextRequest) {
   const subject = searchParams.get('subject');
   const section = searchParams.get('section');
 
+  const isAdmin = (session?.user as any)?.role === 'ADMIN';
   const where: any = {};
   if (subject) where.subject = subject;
   if (section) where.section = section;
+  if (!isAdmin) {
+    where.OR = [{ publishAt: null }, { publishAt: { lte: new Date() } }];
+  }
 
   const materials = await prisma.material.findMany({
     where,
@@ -34,6 +38,7 @@ export async function GET(req: NextRequest) {
       fileSize: true, uploadedById: true,
       createdAt: true, updatedAt: true,
       markingSchemePath: true, markingSchemeFilename: true, markingSchemeFileSize: true,
+      videoUrl: true, publishAt: true, expiresAt: true, difficulty: true,
     },
   });
   return NextResponse.json(materials);

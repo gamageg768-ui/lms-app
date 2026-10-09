@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const material = await prisma.material.findUnique({ where: { id: params.id } });
   if (!material) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Admin can always download; students need permission
+  // Admin can always download; students need permission and are subject to download limit
   if (user.role !== 'ADMIN') {
     const permission = await prisma.downloadPermission.findUnique({
       where: { userId_materialId: { userId: user.id, materialId: params.id } },
@@ -22,7 +22,26 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!permission) {
       return NextResponse.json({ error: 'Download permission not granted' }, { status: 403 });
     }
+    // Feature 8: enforce download limit
+    if (permission.downloadCount >= permission.downloadLimit) {
+      return NextResponse.json({ error: 'Download limit reached', code: 'LIMIT_REACHED' }, { status: 403 });
+    }
+    // Increment count before serving
+    await prisma.downloadPermission.update({
+      where: { userId_materialId: { userId: user.id, materialId: params.id } },
+      data: { downloadCount: { increment: 1 } },
+    });
   }
+
+  // Feature 4: access audit log (fire-and-forget)
+  prisma.accessLog.create({
+    data: {
+      userId: user.id,
+      materialId: params.id,
+      action: 'DOWNLOAD',
+      ip: req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? undefined,
+    },
+  }).catch(() => {});
 
   try {
     const filePath = path.join(getUploadsDir(), material.filePath);

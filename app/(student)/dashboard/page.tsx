@@ -1,6 +1,8 @@
 import { auth } from '@/lib/auth';
 import Link from 'next/link';
 import { SUBJECTS } from '@/types';
+import { prisma } from '@/lib/db';
+import ExamCountdown from '@/components/ExamCountdown';
 
 const colorMap: Record<string, { bg: string; border: string; icon: string; hover: string }> = {
   blue:    { bg: 'bg-blue-50',    border: 'border-blue-200',    icon: 'bg-blue-100 text-blue-700',    hover: 'hover:border-blue-400 hover:bg-blue-100' },
@@ -15,12 +17,20 @@ export default async function DashboardPage() {
   const session = await auth();
   const user = session?.user as any;
 
+  const examDates = await prisma.examDate.findMany({
+    where: { examAt: { gte: new Date() } },
+    orderBy: { examAt: 'asc' },
+  });
+  const serializedDates = examDates.map(d => ({ ...d, examAt: d.examAt.toISOString(), createdAt: d.createdAt.toISOString() }));
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
-      <div className="mb-8">
+    <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+      <div>
         <h1 className="text-3xl font-bold text-gray-900">Welcome back, {user?.name?.split(' ')[0]} 👋</h1>
         <p className="text-gray-500 mt-1">Choose a subject to start studying</p>
       </div>
+
+      <ExamCountdown examDates={serializedDates} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {SUBJECTS.map((subject) => {

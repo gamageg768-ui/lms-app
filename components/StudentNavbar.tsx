@@ -12,9 +12,8 @@ export default function StudentNavbar({ user }: Props) {
 
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-gray-900 text-lg">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">E</div>
-        EduPortal
+      <Link href="/dashboard">
+        <img src="/velora-logo.svg" alt="Velora Education" className="h-10" />
       </Link>
 
       <div className="flex items-center gap-3">
@@ -41,9 +40,17 @@ export default function StudentNavbar({ user }: Props) {
                 <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
                 <p className="text-xs text-gray-500 truncate">{user.email}</p>
               </div>
+              <Link href="/dashboard/notes" onClick={() => setMenuOpen(false)}
+                className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                📝 My Notes
+              </Link>
+              <Link href="/dashboard/submissions" onClick={() => setMenuOpen(false)}
+                className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                📬 My Submissions
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
-                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-b-xl transition"
+                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-b-xl transition border-t border-gray-100"
               >
                 Sign out
               </button>

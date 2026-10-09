@@ -23,6 +23,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!material) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!material.markingSchemePath) return NextResponse.json({ error: 'No marking scheme' }, { status: 404 });
 
+  // Feature 4: access audit log (fire-and-forget)
+  const user = session.user as any;
+  prisma.accessLog.create({
+    data: {
+      userId: user.id,
+      materialId: params.id,
+      action: 'VIEW_SCHEME',
+      ip: req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? undefined,
+    },
+  }).catch(() => {});
+
   try {
     const fileBuffer = await readFile(path.join(getUploadsDir(), material.markingSchemePath));
     return new NextResponse(fileBuffer, { headers: SECURITY_HEADERS });

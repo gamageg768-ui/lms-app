@@ -1,6 +1,6 @@
 {
-  "name": "EduPortal LMS",
-  "short_name": "EduPortal",
+  "name": "Velora Education",
+  "short_name": "Velora",
   "description": "A comprehensive learning management system for A/L students",
   "start_url": "/",
   "display": "standalone",
