@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { readFile, writeFile, mkdir, unlink } from 'fs/promises';
-import path from 'path';
-import { getUploadsDir } from '@/lib/utils';
+import { put, del } from '@vercel/blob';
 
 const SECURITY_HEADERS = {
   'Content-Type': 'application/pdf',
@@ -23,7 +21,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!material) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!material.markingSchemePath) return NextResponse.json({ error: 'No marking scheme' }, { status: 404 });
 
-  // Feature 4: access audit log (fire-and-forget)
   const user = session.user as any;
   prisma.accessLog.create({
     data: {
@@ -34,12 +31,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     },
   }).catch(() => {});
 
-  try {
-    const fileBuffer = await readFile(path.join(getUploadsDir(), material.markingSchemePath));
-    return new NextResponse(fileBuffer, { headers: SECURITY_HEADERS });
-  } catch {
-    return NextResponse.json({ error: 'File not found on disk' }, { status: 404 });
-  }
+  const blobRes = await fetch(material.markingSchemePath);
+  if (!blobRes.ok) return NextResponse.json({ error: 'File not found' }, { status: 404 });
+  return new NextResponse(blobRes.body, { headers: SECURITY_HEADERS });
 }
 
 // POST /api/materials/[id]/marking-scheme - upload/replace marking scheme (admin only)
@@ -56,22 +50,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!file || !file.name) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   if (!file.name.toLowerCase().endsWith('.pdf')) return NextResponse.json({ error: 'Only PDF files are allowed' }, { status: 400 });
 
-  // Delete old marking scheme if exists
   if (material.markingSchemePath) {
-    try { await unlink(path.join(getUploadsDir(), material.markingSchemePath)); } catch {}
+    try { await del(material.markingSchemePath); } catch {}
   }
-
-  const uploadsDir = path.join(getUploadsDir(), material.subject, material.section);
-  await mkdir(uploadsDir, { recursive: true });
 
   const safeFilename = `ms-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(uploadsDir, safeFilename), buffer);
+  const { url: markingSchemePath } = await put(
+    `materials/${material.subject}/${material.section}/${safeFilename}`,
+    buffer,
+    { access: 'public' }
+  );
 
   const updated = await prisma.material.update({
     where: { id: params.id },
     data: {
-      markingSchemePath: path.join(material.subject, material.section, safeFilename),
+      markingSchemePath,
       markingSchemeFilename: file.name,
       markingSchemeFileSize: buffer.length,
     },
@@ -90,7 +84,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!material) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   if (material.markingSchemePath) {
-    try { await unlink(path.join(getUploadsDir(), material.markingSchemePath)); } catch {}
+    try { await del(material.markingSchemePath); } catch {}
   }
 
   const updated = await prisma.material.update({

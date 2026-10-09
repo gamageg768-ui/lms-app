@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { getUploadsDir } from '@/lib/utils';
-
-async function saveFile(uploadsDir: string, file: File, prefix = ''): Promise<{ safeName: string; buffer: Buffer }> {
-  const safeName = `${prefix}${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(uploadsDir, safeName), buffer);
-  return { safeName, buffer };
-}
+import { put } from '@vercel/blob';
 
 // GET /api/materials?subject=&section=
 export async function GET(req: NextRequest) {
@@ -66,17 +57,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only PDF files are allowed' }, { status: 400 });
   }
 
-  const uploadsDir = path.join(getUploadsDir(), subject, section);
-  await mkdir(uploadsDir, { recursive: true });
+  const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { url: filePath } = await put(`materials/${subject}/${section}/${safeName}`, buffer, { access: 'public' });
 
-  const { safeName: safeFilename, buffer } = await saveFile(uploadsDir, file);
-
-  // Handle optional marking scheme upload
-  const msFile = formData.get('markingSchemeFile') as File | null;
   let msPath: string | null = null, msFilename: string | null = null, msSize: number | null = null;
+  const msFile = formData.get('markingSchemeFile') as File | null;
   if (msFile && msFile.name && msFile.name.toLowerCase().endsWith('.pdf')) {
-    const { safeName: msSafeName, buffer: msBuffer } = await saveFile(uploadsDir, msFile, 'ms-');
-    msPath = path.join(subject, section, msSafeName);
+    const msSafeName = `ms-${Date.now()}-${msFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const msBuffer = Buffer.from(await msFile.arrayBuffer());
+    const { url } = await put(`materials/${subject}/${section}/${msSafeName}`, msBuffer, { access: 'public' });
+    msPath = url;
     msFilename = msFile.name;
     msSize = msBuffer.length;
   }
@@ -88,7 +79,7 @@ export async function POST(req: NextRequest) {
       subject,
       section,
       filename: file.name,
-      filePath: path.join(subject, section, safeFilename),
+      filePath,
       fileSize: buffer.length,
       uploadedById: user.id,
       markingSchemePath: msPath,

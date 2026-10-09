@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { getUploadsDir } from '@/lib/utils';
+import { put } from '@vercel/blob';
 
 // POST /api/submissions/[id]/review — admin uploads corrected paper + feedback + optional score
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -33,12 +31,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!correctedFile.name.toLowerCase().endsWith('.pdf')) {
       return NextResponse.json({ error: 'Only PDF files are allowed' }, { status: 400 });
     }
-    const uploadsDir = path.join(getUploadsDir(), 'submissions', submission.studentId);
-    await mkdir(uploadsDir, { recursive: true });
     const safeName = `corrected-${Date.now()}-${correctedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const buffer = Buffer.from(await correctedFile.arrayBuffer());
-    await writeFile(path.join(uploadsDir, safeName), buffer);
-    correctedFilePath = path.join('submissions', submission.studentId, safeName);
+    const { url } = await put(`submissions/${submission.studentId}/${safeName}`, buffer, { access: 'public' });
+    correctedFilePath = url;
     correctedFilename = correctedFile.name;
     correctedFileSize = buffer.length;
   }

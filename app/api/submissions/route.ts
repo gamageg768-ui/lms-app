@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { getUploadsDir } from '@/lib/utils';
+import { put } from '@vercel/blob';
 
 // GET /api/submissions
 // Students: own submissions. Admins: all, with optional ?subject= ?status= filters.
@@ -54,12 +52,9 @@ export async function POST(req: NextRequest) {
   const material = await prisma.material.findUnique({ where: { id: materialId } });
   if (!material) return NextResponse.json({ error: 'Material not found' }, { status: 404 });
 
-  const uploadsDir = path.join(getUploadsDir(), 'submissions', user.id);
-  await mkdir(uploadsDir, { recursive: true });
-
   const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(uploadsDir, safeName), buffer);
+  const { url: filePath } = await put(`submissions/${user.id}/${safeName}`, buffer, { access: 'public' });
 
   const submission = await prisma.paperSubmission.create({
     data: {
@@ -68,7 +63,7 @@ export async function POST(req: NextRequest) {
       subject: material.subject,
       section: material.section,
       filename: file.name,
-      filePath: path.join('submissions', user.id, safeName),
+      filePath,
       fileSize: buffer.length,
     },
     include: {

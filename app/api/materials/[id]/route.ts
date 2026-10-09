@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { unlink } from 'fs/promises';
-import path from 'path';
-import { getUploadsDir } from '@/lib/utils';
+import { del } from '@vercel/blob';
 
 // DELETE /api/materials/[id]
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
@@ -16,13 +14,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const material = await prisma.material.findUnique({ where: { id: params.id } });
   if (!material) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Delete files from disk
-  try { await unlink(path.join(getUploadsDir(), material.filePath)); } catch {}
+  try { await del(material.filePath); } catch {}
   if (material.markingSchemePath) {
-    try { await unlink(path.join(getUploadsDir(), material.markingSchemePath)); } catch {}
+    try { await del(material.markingSchemePath); } catch {}
   }
 
-  // Delete from DB (cascade deletes permissions and mcq sets)
   await prisma.downloadPermission.deleteMany({ where: { materialId: params.id } });
   await prisma.mCQSet.deleteMany({ where: { materialId: params.id } });
   await prisma.material.delete({ where: { id: params.id } });

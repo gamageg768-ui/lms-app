@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { readFile } from 'fs/promises';
-import path from 'path';
-import { getUploadsDir } from '@/lib/utils';
 
 // GET /api/submissions/[id]/corrected — serve the examiner's corrected PDF
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -21,16 +18,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: 'No corrected paper available' }, { status: 404 });
   }
 
-  try {
-    const buffer = await readFile(path.join(getUploadsDir(), submission.correctedFilePath));
-    return new NextResponse(buffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="corrected-${submission.correctedFilename ?? 'paper.pdf'}"`,
-        'Cache-Control': 'no-store, private',
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: 'File not found on disk' }, { status: 404 });
-  }
+  const blobRes = await fetch(submission.correctedFilePath);
+  if (!blobRes.ok) return NextResponse.json({ error: 'File not found' }, { status: 404 });
+
+  return new NextResponse(blobRes.body, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="corrected-${submission.correctedFilename ?? 'paper.pdf'}"`,
+      'Cache-Control': 'no-store, private',
+    },
+  });
 }
