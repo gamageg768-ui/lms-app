@@ -619,10 +619,6 @@ export default function MCQPanel({ mcqSets, materialId, hasMarkingScheme, onView
         </div>
       )}
 
-      {/* Feature 12: Monitoring notice */}
-      <div className="flex-shrink-0 bg-amber-50 border-t border-amber-200 text-amber-700 text-[10px] px-3 py-1 text-center select-none">
-        ⚠ Your activity on this platform is monitored and recorded. Unauthorised sharing of content is strictly prohibited.
-      </div>
     </div>
   );
 }

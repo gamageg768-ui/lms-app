@@ -1069,10 +1069,6 @@ export default function PDFViewer({ materialId, userEmail, hasDownloadPermission
         )}
       </div>
 
-      {/* Monitoring notice */}
-      <div className="flex-shrink-0 bg-amber-950 border-t border-amber-800 text-amber-300 text-[10px] px-3 py-1 text-center select-none">
-        ⚠ Your activity on this platform is monitored and recorded. Unauthorised sharing of content is strictly prohibited.
-      </div>
     </div>
   );
 }
