@@ -144,6 +144,17 @@ export default function PDFViewer({ materialId, userEmail, hasDownloadPermission
   // F13: Copy to clipboard
   const [copyToast, setCopyToast] = useState(false);
 
+  // Toolbar collapse
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('lms-pdf-toolbar-collapsed') === '1';
+  });
+  const toggleToolbar = () => setToolbarCollapsed(c => {
+    const next = !c;
+    localStorage.setItem('lms-pdf-toolbar-collapsed', next ? '1' : '0');
+    return next;
+  });
+
   // Rating feature
   const [ratingPromptShown, setRatingPromptShown] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
@@ -589,6 +600,25 @@ export default function PDFViewer({ materialId, userEmail, hasDownloadPermission
       )}
 
       {/* Toolbar */}
+      {toolbarCollapsed ? (
+        <div className="flex items-center justify-between bg-gray-900 px-2 py-0.5 gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1">
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - step))} disabled={currentPage <= 1}
+              className="text-white hover:text-gray-200 disabled:opacity-30 px-1.5 py-0.5 rounded text-sm font-bold">‹</button>
+            <span className="text-xs text-gray-300">{currentPage} / {numPages}</span>
+            <button onClick={() => setCurrentPage(p => Math.min(numPages, p + step))} disabled={currentPage >= numPages}
+              className="text-white hover:text-gray-200 disabled:opacity-30 px-1.5 py-0.5 rounded text-sm font-bold">›</button>
+            <span className="text-gray-600 mx-1 text-xs">|</span>
+            <button onClick={() => setScale(s => Math.max(0.25, +(s - 0.2).toFixed(2)))} className="text-white text-sm hover:text-gray-200 px-1 w-6 text-center">−</button>
+            <span className="text-xs text-gray-400 w-10 text-center">{Math.round(scale * 100)}%</span>
+            <button onClick={() => setScale(s => Math.min(4, +(s + 0.2).toFixed(2)))} className="text-white text-sm hover:text-gray-200 px-1 w-6 text-center">+</button>
+          </div>
+          <button onClick={toggleToolbar} title="Show toolbar"
+            className="text-gray-400 hover:text-white px-1.5 py-0.5 border border-gray-700 rounded text-xs transition">
+            ▾ Tools
+          </button>
+        </div>
+      ) : (
       <div className="flex items-center justify-between bg-gray-900 px-2 py-1 gap-1 flex-shrink-0 flex-wrap">
 
         {/* Left: thumbnails, outline, search */}
@@ -748,8 +778,15 @@ export default function PDFViewer({ materialId, userEmail, hasDownloadPermission
               : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
             }
           </button>
+
+          {/* Collapse toolbar */}
+          <button onClick={toggleToolbar} title="Hide toolbar"
+            className="text-gray-400 hover:text-white px-1.5 py-0.5 border border-gray-700 rounded text-xs transition ml-1">
+            ▴
+          </button>
         </div>
       </div>
+      )}
 
       {/* F2: Search bar */}
       {showSearch && (
