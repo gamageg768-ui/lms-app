@@ -11,15 +11,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const loginAsGuest = async (email: string, password: string) => {
-    setLoading(true);
-    setError('');
-    const result = await signIn('credentials', { email, password, redirect: false });
-    setLoading(false);
-    if (result?.error) setError('Guest login failed. Run: node scripts/create-guest-admin.js');
-    else { router.push('/'); router.refresh(); }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -97,28 +88,6 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          {/* Quick access for testing */}
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <p className="text-xs text-center text-gray-400 mb-3">Quick access for testing</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => loginAsGuest('guest@student.com', 'guest1234')}
-                disabled={loading}
-                className="py-2.5 px-3 rounded-xl border-2 border-blue-200 text-blue-700 text-sm font-medium hover:bg-blue-50 active:bg-blue-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                👤 Guest Student
-              </button>
-              <button
-                type="button"
-                onClick={() => loginAsGuest('guest@admin.com', 'guest1234')}
-                disabled={loading}
-                className="py-2.5 px-3 rounded-xl border-2 border-purple-200 text-purple-700 text-sm font-medium hover:bg-purple-50 active:bg-purple-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                🔑 Guest Admin
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
